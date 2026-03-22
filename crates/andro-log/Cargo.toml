@@ -1,6 +1,6 @@
 [package]
 name = "andro-log"
-description = "Persistent logcat with FTS search, crash/ANR extraction, alerting"
+description = "Persistent logcat with FTS search, crash/ANR extraction"
 version.workspace = true
 edition.workspace = true
 rust-version.workspace = true
@@ -13,13 +13,8 @@ workspace = true
 
 [dependencies]
 andro-core.workspace = true
-adb_client.workspace = true
-mochizuki.workspace = true
-tokio.workspace = true
 serde.workspace = true
 serde_json.workspace = true
-thiserror.workspace = true
-tracing.workspace = true
 rusqlite.workspace = true
 regex.workspace = true
 chrono.workspace = true

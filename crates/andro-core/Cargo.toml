@@ -1,6 +1,6 @@
 [package]
 name = "andro-core"
-description = "Core types, ADB client wrapper, device model, config, and error types for andro"
+description = "Core types, device model, config, and error types for andro"
 version.workspace = true
 edition.workspace = true
 rust-version.workspace = true
@@ -12,12 +12,8 @@ repository.workspace = true
 workspace = true
 
 [dependencies]
-adb_client.workspace = true
-tokio.workspace = true
 serde.workspace = true
 serde_json.workspace = true
 serde_yaml_ng.workspace = true
 thiserror.workspace = true
-tracing.workspace = true
-chrono.workspace = true
 dirs.workspace = true

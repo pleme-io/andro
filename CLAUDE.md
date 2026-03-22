@@ -55,7 +55,7 @@ andro farm scan                      # scan USB for Android devices
 andro mcp                            # start MCP server (also default)
 ```
 
-## MCP Tools (17 tools)
+## MCP Tools (15 tools)
 
 | Tool | Description |
 |------|-------------|

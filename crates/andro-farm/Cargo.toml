@@ -1,6 +1,6 @@
 [package]
 name = "andro-farm"
-description = "Device farm: USB discovery, inventory, health polling, provisioning"
+description = "Device farm: USB discovery, inventory, health polling"
 version.workspace = true
 edition.workspace = true
 rust-version.workspace = true
@@ -13,13 +13,8 @@ workspace = true
 
 [dependencies]
 andro-core.workspace = true
-andro-adb.workspace = true
-mochizuki.workspace = true
-tokio.workspace = true
 serde.workspace = true
 serde_json.workspace = true
-thiserror.workspace = true
-tracing.workspace = true
 nusb.workspace = true
 rusqlite.workspace = true
 chrono.workspace = true

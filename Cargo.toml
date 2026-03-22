@@ -32,7 +32,10 @@ andro-sec = { path = "crates/andro-sec", version = "0.1.0" }
 andro-farm = { path = "crates/andro-farm", version = "0.1.0" }
 andro-hw = { path = "crates/andro-hw", version = "0.1.0" }
 
-# ADB / Android
+# pleme-io libraries
+fudajiku = { git = "https://github.com/pleme-io/fudajiku" }
+
+# ADB
 adb_client = "3.1"
 
 # USB
@@ -40,21 +43,12 @@ nusb = "0.1"
 
 # APK analysis
 zip = "2"
-axmldecoder = "0.5"
-
-# EXIF
-kamadak-exif = "0.6"
-
-# pleme-io libraries
-mochizuki = { git = "https://github.com/pleme-io/mochizuki" }
-fudajiku = { git = "https://github.com/pleme-io/fudajiku" }
 
 # Hashing
 blake3 = "1"
 
 # Error handling
 thiserror = "2"
-anyhow = "1"
 
 # CLI
 clap = { version = "4", features = ["derive"] }
@@ -78,7 +72,7 @@ tracing-subscriber = { version = "0.3", features = ["env-filter", "json"] }
 # Database
 rusqlite = { version = "0.33", features = ["bundled"] }
 
-# Regex / matching
+# Regex
 regex = "1"
 
 # Directories
@@ -86,13 +80,6 @@ dirs = "6"
 
 # Time
 chrono = { version = "0.4", features = ["serde"] }
-
-# Progress
-indicatif = "0.17"
-
-# File traversal
-walkdir = "2"
-glob = "0.3"
 
 [workspace.lints.clippy]
 pedantic = "warn"

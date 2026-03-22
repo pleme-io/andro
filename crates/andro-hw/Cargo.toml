@@ -1,6 +1,6 @@
 [package]
 name = "andro-hw"
-description = "Hardware: boot image manipulation, fastboot protocol, partition management"
+description = "Hardware: boot image parsing, fastboot device enumeration"
 version.workspace = true
 edition.workspace = true
 rust-version.workspace = true
@@ -14,8 +14,5 @@ workspace = true
 [dependencies]
 andro-core.workspace = true
 nusb.workspace = true
-tokio.workspace = true
 serde.workspace = true
 serde_json.workspace = true
-thiserror.workspace = true
-tracing.workspace = true
