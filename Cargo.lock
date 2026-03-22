@@ -95,6 +95,7 @@ dependencies = [
  "andro-core",
  "axmldecoder",
  "blake3",
+ "mochizuki",
  "rusqlite",
  "serde",
  "serde_json",
@@ -125,6 +126,7 @@ dependencies = [
  "andro-adb",
  "andro-core",
  "chrono",
+ "mochizuki",
  "nusb",
  "rusqlite",
  "serde",
@@ -155,6 +157,7 @@ dependencies = [
  "adb_client",
  "andro-core",
  "chrono",
+ "mochizuki",
  "regex",
  "rusqlite",
  "serde",
@@ -186,6 +189,7 @@ dependencies = [
  "andro-core",
  "blake3",
  "chrono",
+ "fudajiku",
  "glob",
  "indicatif",
  "kamadak-exif",
@@ -947,6 +951,18 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "d9c4f5dac5e15c24eb999c26181a6ca40b39fe946cbe4c263c7209467bc83af2"
 
 [[package]]
+name = "fudajiku"
+version = "0.1.0"
+source = "git+https://github.com/pleme-io/fudajiku#41df9ad52af505e0890598d3b9820c865f1ec9c3"
+dependencies = [
+ "blake3",
+ "chrono",
+ "serde",
+ "serde_json",
+ "thiserror 2.0.18",
+]
+
+[[package]]
 name = "funty"
 version = "2.0.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1422,6 +1438,18 @@ dependencies = [
  "libc",
  "wasi",
  "windows-sys 0.61.2",
+]
+
+[[package]]
+name = "mochizuki"
+version = "0.1.0"
+source = "git+https://github.com/pleme-io/mochizuki#1879decfe0d791e160e742ab6e303aa30491393f"
+dependencies = [
+ "chrono",
+ "rusqlite",
+ "serde",
+ "serde_json",
+ "thiserror 2.0.18",
 ]
 
 [[package]]

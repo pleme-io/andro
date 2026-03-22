@@ -49,6 +49,10 @@ axmldecoder = "0.5"
 # EXIF
 kamadak-exif = "0.6"
 
+# pleme-io libraries
+mochizuki = { git = "https://github.com/pleme-io/mochizuki" }
+fudajiku = { git = "https://github.com/pleme-io/fudajiku" }
+
 # Hashing
 blake3 = "1"
 

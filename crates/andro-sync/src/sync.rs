@@ -6,7 +6,7 @@ use std::net::SocketAddrV4;
 use std::path::{Path, PathBuf};
 use tracing::info;
 
-use crate::manifest::SyncManifest;
+use fudajiku::Manifest;
 
 #[derive(Debug, Clone)]
 pub enum SyncDirection {
@@ -107,8 +107,8 @@ impl FileSyncer {
         // Record in manifest
         let hash = blake3::hash(&output);
         let manifest_path = self.manifest_dir.join("sync.json");
-        let mut manifest = SyncManifest::load(&manifest_path);
-        manifest.record(remote_path, local_path, hash, size);
+        let mut manifest = Manifest::load(&manifest_path);
+        manifest.record(remote_path, &local_path.display().to_string(), hash, size);
         let _ = manifest.save(&manifest_path);
 
         info!(
