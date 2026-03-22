@@ -1,4 +1,5 @@
 use crate::rules::SecurityRule;
+use andro_core::traits::ArchiveReader;
 use serde::{Deserialize, Serialize};
 use std::io::Read;
 use std::path::Path;
@@ -125,10 +126,129 @@ impl ApkScanner {
 
         Ok(result)
     }
+
+    /// Scan APK data using a trait-based archive reader.
+    ///
+    /// Accepts any `ArchiveReader` implementation, enabling mock-based testing
+    /// without real ZIP files. Text-based entries (`.xml`, `.json`, `.properties`)
+    /// are read via the reader and checked against all rules.
+    pub fn scan_with(
+        &self,
+        label: &str,
+        data: &[u8],
+        reader: &dyn ArchiveReader,
+    ) -> andro_core::Result<ScanResult> {
+        let mut result = ScanResult::new(label);
+        let entries = reader.list_entries(data)?;
+
+        for entry in &entries {
+            let name = &entry.path;
+            result.total_files_scanned += 1;
+
+            // Read text-based files for pattern matching
+            if name.ends_with(".xml") || name.ends_with(".json") || name.ends_with(".properties") {
+                if let Ok(bytes) = reader.read_entry(data, name) {
+                    if let Ok(content) = String::from_utf8(bytes) {
+                        for rule in &self.rules {
+                            if let Some(finding) = rule.check(name, &content) {
+                                result.add_finding(finding);
+                            }
+                        }
+                    }
+                }
+            }
+
+            // Check for binary manifest
+            if name == "AndroidManifest.xml" {
+                result.add_finding(ScanFinding {
+                    rule_id: "MANIFEST_BINARY".into(),
+                    severity: Severity::Info,
+                    title: "Binary manifest detected".into(),
+                    description: "AndroidManifest.xml is in binary format. Full analysis requires AXML decoder.".into(),
+                    file: Some(name.clone()),
+                    line: None,
+                    evidence: None,
+                });
+            }
+        }
+
+        // Sort findings by severity (critical first)
+        result.findings.sort_by(|a, b| b.severity.cmp(&a.severity));
+
+        Ok(result)
+    }
 }
 
 impl Default for ApkScanner {
     fn default() -> Self {
         Self::new()
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use andro_core::mocks::MockArchiveReader;
+
+    #[test]
+    fn scan_with_detects_aws_key() {
+        let reader = MockArchiveReader::new()
+            .with_entry("res/values/strings.xml", b"aws_key=AKIAIOSFODNN7EXAMPLE");
+        let scanner = ApkScanner::new();
+        let result = scanner.scan_with("test.apk", &[], &reader).unwrap();
+        assert!(result.findings.iter().any(|f| f.rule_id == "AWS_KEY"));
+        assert_eq!(result.critical_count, 1);
+    }
+
+    #[test]
+    fn scan_with_detects_http_url() {
+        let reader = MockArchiveReader::new()
+            .with_entry("res/xml/network_config.xml", b"url=http://api.example.com/v1");
+        let scanner = ApkScanner::new();
+        let result = scanner.scan_with("test.apk", &[], &reader).unwrap();
+        assert!(result.findings.iter().any(|f| f.rule_id == "HTTP_URL"));
+        assert_eq!(result.medium_count, 1);
+    }
+
+    #[test]
+    fn scan_with_no_findings_on_clean_apk() {
+        let reader = MockArchiveReader::new()
+            .with_entry("classes.dex", &[0u8; 64])
+            .with_entry("res/layout/main.xml", b"<LinearLayout/>");
+        let scanner = ApkScanner::new();
+        let result = scanner.scan_with("clean.apk", &[], &reader).unwrap();
+        // No critical/high/medium/low findings (only info-level manifest check is absent here)
+        assert_eq!(result.critical_count, 0);
+        assert_eq!(result.high_count, 0);
+        assert_eq!(result.total_files_scanned, 2);
+    }
+
+    #[test]
+    fn scan_with_manifest_binary_info() {
+        let reader = MockArchiveReader::new()
+            .with_entry("AndroidManifest.xml", &[0u8; 32]);
+        let scanner = ApkScanner::new();
+        let result = scanner.scan_with("app.apk", &[], &reader).unwrap();
+        assert!(result.findings.iter().any(|f| f.rule_id == "MANIFEST_BINARY"));
+        assert_eq!(result.info_count, 1);
+    }
+
+    #[test]
+    fn scan_with_multiple_findings() {
+        let reader = MockArchiveReader::new()
+            .with_entry("config.properties",
+                b"api_key = \"AKIAIOSFODNN7EXAMPLE\"\nendpoint = http://api.example.com\ndebug = true")
+            .with_entry("AndroidManifest.xml", b"<manifest/>");
+        let scanner = ApkScanner::new();
+        let result = scanner.scan_with("multi.apk", &[], &reader).unwrap();
+        // AWS_KEY (critical) + HTTP_URL (medium) + DEBUG_FLAG (medium) + MANIFEST_BINARY (info)
+        assert!(result.findings.len() >= 4, "expected >= 4, got {}: {:?}",
+            result.findings.len(),
+            result.findings.iter().map(|f| &f.rule_id).collect::<Vec<_>>());
+        // Findings sorted by severity (critical/high first)
+        let severities: Vec<_> = result.findings.iter().map(|f| f.severity).collect();
+        for w in severities.windows(2) {
+            assert!(w[0] >= w[1]);
+        }
     }
 }

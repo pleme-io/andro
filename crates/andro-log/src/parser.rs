@@ -1,3 +1,4 @@
+use andro_core::traits::LogcatParser;
 use chrono::NaiveDateTime;
 use serde::{Deserialize, Serialize};
 
@@ -130,9 +131,48 @@ impl LogParser {
     }
 }
 
+// ── StandardLogcatParser ────────────────────────────────────────────
+
+/// Production `LogcatParser` implementation that wraps `LogParser::parse_line`.
+///
+/// Bridges the static `LogParser` methods to the `LogcatParser` trait for
+/// testability. Use `MockLogcatParser` from `andro_core::mocks` for tests.
+pub struct StandardLogcatParser;
+
+impl LogcatParser for StandardLogcatParser {
+    fn parse_text_line(&self, line: &str) -> Option<andro_core::LogEntry> {
+        LogParser::parse_line(line).map(|e| andro_core::LogEntry {
+            timestamp: e.timestamp,
+            pid: e.pid,
+            tid: e.tid,
+            level: match e.level {
+                LogLevel::Verbose => andro_core::LogLevel::Verbose,
+                LogLevel::Debug => andro_core::LogLevel::Debug,
+                LogLevel::Info => andro_core::LogLevel::Info,
+                LogLevel::Warn => andro_core::LogLevel::Warn,
+                LogLevel::Error => andro_core::LogLevel::Error,
+                LogLevel::Fatal => andro_core::LogLevel::Fatal,
+                LogLevel::Silent => andro_core::LogLevel::Silent,
+            },
+            tag: e.tag,
+            message: e.message,
+            raw: e.raw,
+        })
+    }
+
+    fn parse_binary_entry(&self, _data: &[u8]) -> andro_core::Result<andro_core::LogEntry> {
+        // Binary logcat parsing not yet implemented — placeholder
+        Err(andro_core::AndroError::Other(
+            "binary logcat parsing not yet implemented".to_string(),
+        ))
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+    use andro_core::mocks::MockLogcatParser;
+    use andro_core::traits::LogcatParser as LogcatParserTrait;
 
     #[test]
     fn parse_threadtime_line() {
@@ -159,5 +199,61 @@ mod tests {
             let level = LogLevel::from_char(c);
             assert_eq!(level.as_char(), c);
         }
+    }
+
+    // ── StandardLogcatParser trait tests ─────────────────────────────
+
+    #[test]
+    fn standard_parser_implements_trait() {
+        let parser = StandardLogcatParser;
+        let line = "03-22 14:30:45.123  1234  5678 I SystemServer: Boot complete";
+        let entry = parser.parse_text_line(line).unwrap();
+        assert_eq!(entry.tag, "SystemServer");
+        assert_eq!(entry.message, "Boot complete");
+        assert_eq!(entry.level, andro_core::LogLevel::Info);
+        assert_eq!(entry.pid, Some(1234));
+    }
+
+    #[test]
+    fn standard_parser_binary_returns_error() {
+        let parser = StandardLogcatParser;
+        let result = parser.parse_binary_entry(&[0u8; 32]);
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn mock_parser_returns_predictable_results() {
+        let parser = MockLogcatParser;
+        let entry = parser.parse_text_line("any input").unwrap();
+        assert_eq!(entry.tag, "MockTag");
+        assert_eq!(entry.level, andro_core::LogLevel::Info);
+        assert_eq!(entry.pid, Some(1234));
+    }
+
+    #[test]
+    fn standard_and_mock_are_interchangeable() {
+        // Both implement the same trait and can be used as dyn references
+        fn parse_via_trait(parser: &dyn LogcatParserTrait, line: &str) -> Option<andro_core::LogEntry> {
+            parser.parse_text_line(line)
+        }
+
+        let standard = StandardLogcatParser;
+        let mock = MockLogcatParser;
+
+        let line = "03-22 14:30:45.123  9999  8888 W TagA: warning msg";
+        let from_standard = parse_via_trait(&standard, line).unwrap();
+        let from_mock = parse_via_trait(&mock, line).unwrap();
+
+        // Standard parser actually parses; mock returns fixed data
+        assert_eq!(from_standard.tag, "TagA");
+        assert_eq!(from_mock.tag, "MockTag");
+    }
+
+    #[test]
+    fn standard_parser_short_line() {
+        let parser = StandardLogcatParser;
+        let entry = parser.parse_text_line("short").unwrap();
+        // Short lines still parse (with defaults)
+        assert_eq!(entry.message, "short");
     }
 }
