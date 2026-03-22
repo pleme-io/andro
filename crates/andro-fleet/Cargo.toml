@@ -1,0 +1,19 @@
+[package]
+name = "andro-fleet"
+description = "Fleet orchestration — parallel ADB operations across multiple devices"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+authors.workspace = true
+repository.workspace = true
+
+[lints]
+workspace = true
+
+[dependencies]
+andro-core.workspace = true
+andro-adb.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+tokio.workspace = true

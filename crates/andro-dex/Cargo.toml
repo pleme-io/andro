@@ -1,0 +1,17 @@
+[package]
+name = "andro-dex"
+description = "DEX file format parser — header, string table, method/class counts"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+authors.workspace = true
+repository.workspace = true
+
+[lints]
+workspace = true
+
+[dependencies]
+andro-core.workspace = true
+serde.workspace = true
+serde_json.workspace = true

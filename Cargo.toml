@@ -10,6 +10,14 @@ members = [
   "crates/andro-sec",
   "crates/andro-farm",
   "crates/andro-hw",
+  "crates/andro-dex",
+  "crates/andro-axml",
+  "crates/andro-sign",
+  "crates/andro-manifest",
+  "crates/andro-gos",
+  "crates/andro-settings",
+  "crates/andro-health",
+  "crates/andro-fleet",
 ]
 
 [workspace.package]
@@ -31,6 +39,14 @@ andro-build = { path = "crates/andro-build", version = "0.1.0" }
 andro-sec = { path = "crates/andro-sec", version = "0.1.0" }
 andro-farm = { path = "crates/andro-farm", version = "0.1.0" }
 andro-hw = { path = "crates/andro-hw", version = "0.1.0" }
+andro-dex = { path = "crates/andro-dex", version = "0.1.0" }
+andro-axml = { path = "crates/andro-axml", version = "0.1.0" }
+andro-sign = { path = "crates/andro-sign", version = "0.1.0" }
+andro-manifest = { path = "crates/andro-manifest", version = "0.1.0" }
+andro-gos = { path = "crates/andro-gos", version = "0.1.0" }
+andro-settings = { path = "crates/andro-settings", version = "0.1.0" }
+andro-health = { path = "crates/andro-health", version = "0.1.0" }
+andro-fleet = { path = "crates/andro-fleet", version = "0.1.0" }
 
 # pleme-io libraries
 fudajiku = { git = "https://github.com/pleme-io/fudajiku" }
@@ -80,6 +96,9 @@ dirs = "6"
 
 # Time
 chrono = { version = "0.4", features = ["serde"] }
+
+# HTTP
+reqwest = { version = "0.12", features = ["json"] }
 
 [workspace.lints.clippy]
 pedantic = "warn"
