@@ -152,6 +152,30 @@ pub trait LogcatParser: Send + Sync {
     fn parse_binary_entry(&self, data: &[u8]) -> Result<crate::LogEntry>;
 }
 
+// ── Tier 3b: Attestation ───────────────────────────────────────────────
+
+/// Device attestation verification — GrapheneOS Auditor/AttestationServer protocol.
+/// Integrates with tameshi's BLAKE3 Merkle tree for infrastructure attestation.
+pub trait AttestationVerifier: Send + Sync {
+    /// Verify device attestation against a challenge.
+    fn verify(&self, challenge: &[u8], response: &[u8]) -> Result<AttestationResult>;
+
+    /// Generate a challenge for device attestation.
+    fn generate_challenge(&self) -> Result<Vec<u8>>;
+
+    /// Get the attestation trust chain for a device.
+    fn trust_chain(&self, device_id: &str) -> Result<Vec<AttestationCert>>;
+}
+
+/// OTA update provider — check and fetch updates from release servers.
+pub trait OtaProvider: Send + Sync {
+    /// Check for available updates for a device on a channel.
+    fn check_update(&self, device: &str, channel: &str) -> Result<Option<OtaManifest>>;
+
+    /// Verify an OTA payload's integrity.
+    fn verify_payload(&self, payload: &[u8], expected_hash: &str) -> Result<bool>;
+}
+
 // ── Tier 4: Storage ────────────────────────────────────────────────────
 
 /// Database storage backend — abstracts SQLite for testability.

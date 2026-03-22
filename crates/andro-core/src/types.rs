@@ -243,6 +243,42 @@ pub enum EventLogValue {
     List(Vec<EventLogValue>),
 }
 
+// ── Attestation types ──────────────────────────────────────────────────
+
+/// Result of device attestation verification.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct AttestationResult {
+    pub verified: bool,
+    pub device_model: Option<String>,
+    pub os_version: Option<String>,
+    pub patch_level: Option<String>,
+    pub boot_state: Option<String>,
+    pub blake3_hash: Option<String>,
+    pub error: Option<String>,
+}
+
+/// Certificate in the attestation trust chain.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct AttestationCert {
+    pub subject: String,
+    pub issuer: String,
+    pub serial: String,
+    pub not_before: String,
+    pub not_after: String,
+    pub key_usage: Vec<String>,
+}
+
+/// OTA update manifest from release server.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct OtaManifest {
+    pub device: String,
+    pub channel: String,
+    pub build_number: String,
+    pub factory_url: String,
+    pub ota_url: String,
+    pub incremental_url: Option<String>,
+}
+
 // ── Shell output ───────────────────────────────────────────────────────
 
 /// Output from a shell command execution (shared across ADB trait + crates).

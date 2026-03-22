@@ -525,6 +525,76 @@ impl BootImageParser for MockBootImageParser {
     }
 }
 
+// ── MockAttestationVerifier ─────────────────────────────────────────────
+
+/// Mock attestation verifier for testing.
+pub struct MockAttestationVerifier {
+    pub verified: bool,
+}
+
+impl MockAttestationVerifier {
+    pub fn verified() -> Self { Self { verified: true } }
+    pub fn failed() -> Self { Self { verified: false } }
+}
+
+impl AttestationVerifier for MockAttestationVerifier {
+    fn verify(&self, _challenge: &[u8], _response: &[u8]) -> Result<AttestationResult> {
+        Ok(AttestationResult {
+            verified: self.verified,
+            device_model: Some("Pixel 8 Pro".to_string()),
+            os_version: Some("14".to_string()),
+            patch_level: Some("2026-03-05".to_string()),
+            boot_state: Some("verified".to_string()),
+            blake3_hash: Some(blake3::hash(b"mock_attestation").to_hex().to_string()),
+            error: if self.verified { None } else { Some("attestation failed".to_string()) },
+        })
+    }
+
+    fn generate_challenge(&self) -> Result<Vec<u8>> {
+        Ok(vec![0x42; 32])
+    }
+
+    fn trust_chain(&self, _device_id: &str) -> Result<Vec<AttestationCert>> {
+        Ok(vec![AttestationCert {
+            subject: "CN=GrapheneOS".to_string(),
+            issuer: "CN=Google Hardware Attestation Root".to_string(),
+            serial: "1".to_string(),
+            not_before: "2024-01-01".to_string(),
+            not_after: "2034-01-01".to_string(),
+            key_usage: vec!["digitalSignature".to_string()],
+        }])
+    }
+}
+
+// ── MockOtaProvider ────────────────────────────────────────────────────
+
+/// Mock OTA provider for testing.
+pub struct MockOtaProvider {
+    pub build_number: String,
+}
+
+impl MockOtaProvider {
+    pub fn new(build: &str) -> Self { Self { build_number: build.to_string() } }
+}
+
+impl OtaProvider for MockOtaProvider {
+    fn check_update(&self, device: &str, channel: &str) -> Result<Option<OtaManifest>> {
+        Ok(Some(OtaManifest {
+            device: device.to_string(),
+            channel: channel.to_string(),
+            build_number: self.build_number.clone(),
+            factory_url: format!("https://releases.grapheneos.org/{device}-factory-{}.zip", self.build_number),
+            ota_url: format!("https://releases.grapheneos.org/{device}-ota_update-{}.zip", self.build_number),
+            incremental_url: None,
+        }))
+    }
+
+    fn verify_payload(&self, payload: &[u8], expected_hash: &str) -> Result<bool> {
+        let hash = blake3::hash(payload).to_hex().to_string();
+        Ok(hash == expected_hash)
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -618,5 +688,55 @@ mod tests {
         let sparse = parser.parse(&[]).unwrap();
         let raw = parser.to_raw(&sparse).unwrap();
         assert_eq!(raw.len(), 4096);
+    }
+
+    #[test]
+    fn mock_attestation_verified() {
+        let verifier = MockAttestationVerifier::verified();
+        let result = verifier.verify(&[0x01], &[0x02]).unwrap();
+        assert!(result.verified);
+        assert_eq!(result.device_model.as_deref(), Some("Pixel 8 Pro"));
+        assert!(result.blake3_hash.is_some());
+    }
+
+    #[test]
+    fn mock_attestation_failed() {
+        let verifier = MockAttestationVerifier::failed();
+        let result = verifier.verify(&[0x01], &[0x02]).unwrap();
+        assert!(!result.verified);
+        assert!(result.error.is_some());
+    }
+
+    #[test]
+    fn mock_attestation_challenge() {
+        let verifier = MockAttestationVerifier::verified();
+        let challenge = verifier.generate_challenge().unwrap();
+        assert_eq!(challenge.len(), 32);
+    }
+
+    #[test]
+    fn mock_attestation_trust_chain() {
+        let verifier = MockAttestationVerifier::verified();
+        let chain = verifier.trust_chain("test").unwrap();
+        assert_eq!(chain.len(), 1);
+        assert!(chain[0].subject.contains("GrapheneOS"));
+    }
+
+    #[test]
+    fn mock_ota_provider() {
+        let provider = MockOtaProvider::new("2026031500");
+        let manifest = provider.check_update("husky", "stable").unwrap().unwrap();
+        assert_eq!(manifest.device, "husky");
+        assert_eq!(manifest.build_number, "2026031500");
+        assert!(manifest.factory_url.contains("husky"));
+    }
+
+    #[test]
+    fn mock_ota_verify_payload() {
+        let provider = MockOtaProvider::new("test");
+        let data = b"test payload";
+        let hash = blake3::hash(data).to_hex().to_string();
+        assert!(provider.verify_payload(data, &hash).unwrap());
+        assert!(!provider.verify_payload(data, "wrong_hash").unwrap());
     }
 }
