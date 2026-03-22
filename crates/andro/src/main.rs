@@ -1,7 +1,13 @@
 mod mcp;
 
 use andro_adb::DeviceManager;
+use andro_build::ApkAnalyzer;
 use andro_core::AndroConfig;
+use andro_farm::UsbDiscovery;
+use andro_hw::{BootImage, FastbootClient};
+use andro_log::{LogParser, LogStore};
+use andro_sec::{ApkScanner, PermissionAudit};
+use andro_sync::FileSyncer;
 use clap::{Parser, Subcommand};
 use std::process::ExitCode;
 use tracing_subscriber::{fmt, prelude::*, EnvFilter};
@@ -9,7 +15,6 @@ use tracing_subscriber::{fmt, prelude::*, EnvFilter};
 #[derive(Parser)]
 #[command(name = "andro", version, about = "Android DevOps suite")]
 struct Cli {
-    /// Output logs as JSON (for systemd journal integration)
     #[arg(long, global = true)]
     json: bool,
 
@@ -19,175 +24,134 @@ struct Cli {
 
 #[derive(Subcommand)]
 enum Command {
-    // ── Phase 1: Device operations ─────────────────────────────────────
-    /// List connected devices
+    /// Device operations
     Device {
         #[command(subcommand)]
         action: DeviceAction,
     },
-
-    /// Run a shell command on a device
+    /// Run shell command on device
     Shell {
-        /// Device serial (omit for single-device)
         #[arg(short, long)]
         device: Option<String>,
-
-        /// Command to execute
         command: Vec<String>,
     },
-
-    /// Install an APK on a device
+    /// Install APK
     Install {
-        /// Device serial
         #[arg(short, long)]
         device: Option<String>,
-
-        /// Path to APK file
         apk: String,
     },
-
-    // ── Phase 2: File transfer (stub) ──────────────────────────────────
-    /// File sync and backup operations
+    /// File sync and transfer
     Sync {
         #[command(subcommand)]
         action: SyncAction,
     },
-
-    // ── Phase 3: Debugging (stub) ──────────────────────────────────────
     /// Log capture and analysis
     Log {
         #[command(subcommand)]
         action: LogAction,
     },
-
-    // ── Phase 4: Build analysis (stub) ─────────────────────────────────
-    /// APK/AAB analysis and size tracking
+    /// APK/AAB analysis
     Build {
         #[command(subcommand)]
         action: BuildAction,
     },
-
     /// Security scanning
     Sec {
         #[command(subcommand)]
         action: SecAction,
     },
-
-    // ── Phase 5: Hardware (stub) ───────────────────────────────────────
-    /// Hardware operations (fastboot, boot images)
+    /// Hardware operations
     Hw {
         #[command(subcommand)]
         action: HwAction,
     },
-
     /// Device farm management
     Farm {
         #[command(subcommand)]
         action: FarmAction,
     },
-
-    // ── MCP server ─────────────────────────────────────────────────────
-    /// Start MCP server (stdio transport)
+    /// Start MCP server (stdio)
     Mcp,
 }
 
-// ── Phase 1 subcommands ────────────────────────────────────────────────
-
 #[derive(Subcommand)]
 enum DeviceAction {
-    /// List all connected devices
     List,
-    /// Show detailed device info
     Info {
-        /// Device serial
         #[arg(short, long)]
         device: Option<String>,
     },
 }
 
-// ── Phase 2-5 stub subcommands ─────────────────────────────────────────
-
 #[derive(Subcommand)]
 enum SyncAction {
-    /// Push files to device
+    /// Push file to device
     Push {
-        /// Local source path
+        #[arg(short, long)]
+        device: Option<String>,
         src: String,
-        /// Remote destination path
         dst: String,
     },
-    /// Pull files from device
+    /// Pull file from device
     Pull {
-        /// Remote source path
+        #[arg(short, long)]
+        device: Option<String>,
         src: String,
-        /// Local destination path
         dst: String,
     },
 }
 
 #[derive(Subcommand)]
 enum LogAction {
-    /// Watch live logcat
-    Watch,
     /// Search log history
     Search {
-        /// Search query
         query: String,
+        #[arg(short, long, default_value = "20")]
+        limit: usize,
+    },
+    /// Show log statistics
+    Stats,
+    /// Prune old entries
+    Prune {
+        #[arg(short, long, default_value = "30")]
+        days: u32,
     },
 }
 
 #[derive(Subcommand)]
 enum BuildAction {
-    /// Analyze an APK
-    Analyze {
-        /// Path to APK file
-        apk: String,
-    },
+    /// Analyze APK structure
+    Analyze { apk: String },
     /// Diff two APKs
-    Diff {
-        /// Base APK
-        base: String,
-        /// Target APK
-        target: String,
-    },
+    Diff { base: String, target: String },
 }
 
 #[derive(Subcommand)]
 enum SecAction {
-    /// Scan an APK for security issues
-    Scan {
-        /// Path to APK file
-        apk: String,
-    },
+    /// Scan APK for security issues
+    Scan { apk: String },
 }
 
 #[derive(Subcommand)]
 enum HwAction {
-    /// Show fastboot device status
-    Status,
-    /// Boot image operations
-    Boot {
-        #[command(subcommand)]
-        action: BootAction,
-    },
-}
-
-#[derive(Subcommand)]
-enum BootAction {
-    /// Unpack a boot image
-    Unpack {
-        /// Path to boot.img
+    /// List fastboot devices
+    Fastboot,
+    /// Parse boot image
+    BootInfo { image: String },
+    /// Unpack boot image
+    BootUnpack {
         image: String,
+        #[arg(short, long, default_value = "./boot_unpacked")]
+        output: String,
     },
 }
 
 #[derive(Subcommand)]
 enum FarmAction {
-    /// Show device farm status
-    Status,
+    /// Scan USB for Android devices
+    Scan,
 }
-
-// ── Entry point ────────────────────────────────────────────────────────
 
 fn init_tracing(json: bool) {
     if json {
@@ -209,7 +173,6 @@ async fn main() -> ExitCode {
     let cli = Cli::parse();
     init_tracing(cli.json);
 
-    // No subcommand → MCP server (default mode, like kurage)
     let Some(command) = cli.command else {
         return mcp::run().await;
     };
@@ -226,72 +189,170 @@ async fn main() -> ExitCode {
 
 async fn run(command: Command) -> andro_core::Result<()> {
     let config = AndroConfig::load();
-    let manager = DeviceManager::from_config(&config);
 
     match command {
-        // ── Phase 1: implemented ───────────────────────────────────────
-        Command::Device { action } => match action {
-            DeviceAction::List => {
-                let devices = manager.list_devices()?;
-                if devices.is_empty() {
-                    println!("no devices connected");
-                } else {
-                    for d in &devices {
-                        println!("{}\t{}", d.id, d.state);
+        Command::Device { action } => {
+            let manager = DeviceManager::from_config(&config);
+            match action {
+                DeviceAction::List => {
+                    let devices = manager.list_devices()?;
+                    if devices.is_empty() {
+                        println!("no devices connected");
+                    } else {
+                        for d in &devices {
+                            println!("{}\t{}", d.id, d.state);
+                        }
                     }
                 }
-                Ok(())
+                DeviceAction::Info { device } => {
+                    let info = manager.device_info(device.as_deref())?;
+                    println!("{}", serde_json::to_string_pretty(&info)?);
+                }
             }
-            DeviceAction::Info { device } => {
-                let info = manager.device_info(device.as_deref())?;
-                println!("{}", serde_json::to_string_pretty(&info)?);
-                Ok(())
-            }
-        },
+        }
 
         Command::Shell { device, command: cmd } => {
-            let full_cmd = cmd.join(" ");
-            let output = manager.shell(device.as_deref(), &full_cmd)?;
+            let manager = DeviceManager::from_config(&config);
+            let output = manager.shell(device.as_deref(), &cmd.join(" "))?;
             print!("{}", output.stdout);
-            Ok(())
         }
 
         Command::Install { device, apk } => {
-            let path = std::path::PathBuf::from(&apk);
-            manager.install(device.as_deref(), &path)?;
+            let manager = DeviceManager::from_config(&config);
+            manager.install(device.as_deref(), &std::path::PathBuf::from(&apk))?;
             println!("installed {apk}");
-            Ok(())
         }
+
+        Command::Sync { action } => {
+            let syncer = FileSyncer::from_config(&config);
+            let manager = DeviceManager::from_config(&config);
+            match action {
+                SyncAction::Push { device, src, dst } => {
+                    let serial = resolve_device(&manager, device.as_deref())?;
+                    let bytes = syncer.push_file(&serial, std::path::Path::new(&src), &dst)?;
+                    println!("pushed {bytes} bytes → {dst}");
+                }
+                SyncAction::Pull { device, src, dst } => {
+                    let serial = resolve_device(&manager, device.as_deref())?;
+                    let bytes = syncer.pull_file(&serial, &src, std::path::Path::new(&dst))?;
+                    println!("pulled {bytes} bytes → {dst}");
+                }
+            }
+        }
+
+        Command::Log { action } => match action {
+            LogAction::Search { query, limit } => {
+                let store = LogStore::open(&config.log.db_path)
+                    .map_err(|e| andro_core::AndroError::Other(e.to_string()))?;
+                let entries = store.search(&query, limit)?;
+                if entries.is_empty() {
+                    println!("no matches");
+                } else {
+                    for entry in &entries {
+                        println!(
+                            "{} {} {}/{}: {}",
+                            entry.timestamp.map(|t| t.to_string()).unwrap_or_default(),
+                            entry.level.as_char(),
+                            entry.tag,
+                            entry.pid.unwrap_or(0),
+                            entry.message
+                        );
+                    }
+                    println!("\n{} entries found", entries.len());
+                }
+            }
+            LogAction::Stats => {
+                let store = LogStore::open(&config.log.db_path)
+                    .map_err(|e| andro_core::AndroError::Other(e.to_string()))?;
+                let count = store.count()?;
+                println!("log entries: {count}");
+                println!("database: {}", config.log.db_path.display());
+            }
+            LogAction::Prune { days } => {
+                let store = LogStore::open(&config.log.db_path)
+                    .map_err(|e| andro_core::AndroError::Other(e.to_string()))?;
+                let deleted = store.prune(days)?;
+                println!("pruned {deleted} entries older than {days} days");
+            }
+        },
+
+        Command::Build { action } => match action {
+            BuildAction::Analyze { apk } => {
+                let info = ApkAnalyzer::analyze(std::path::Path::new(&apk))?;
+                println!("{}", serde_json::to_string_pretty(&info)?);
+            }
+            BuildAction::Diff { base, target } => {
+                let diff = ApkAnalyzer::diff(
+                    std::path::Path::new(&base),
+                    std::path::Path::new(&target),
+                )?;
+                println!("{}", serde_json::to_string_pretty(&diff)?);
+            }
+        },
+
+        Command::Sec { action } => match action {
+            SecAction::Scan { apk } => {
+                let scanner = ApkScanner::new();
+                let result = scanner.scan(std::path::Path::new(&apk))?;
+                println!("{}", serde_json::to_string_pretty(&result)?);
+                if result.critical_count > 0 || result.high_count > 0 {
+                    eprintln!(
+                        "\n⚠ {} critical, {} high severity findings",
+                        result.critical_count, result.high_count
+                    );
+                }
+            }
+        },
+
+        Command::Hw { action } => match action {
+            HwAction::Fastboot => {
+                let devices = FastbootClient::list_devices()?;
+                if devices.is_empty() {
+                    println!("no fastboot devices");
+                } else {
+                    println!("{}", serde_json::to_string_pretty(&devices)?);
+                }
+            }
+            HwAction::BootInfo { image } => {
+                let boot = BootImage::parse(std::path::Path::new(&image))?;
+                println!("{}", serde_json::to_string_pretty(&boot)?);
+            }
+            HwAction::BootUnpack { image, output } => {
+                let boot = BootImage::parse(std::path::Path::new(&image))?;
+                boot.unpack(std::path::Path::new(&image), std::path::Path::new(&output))?;
+                println!("unpacked to {output}/");
+            }
+        },
+
+        Command::Farm { action } => match action {
+            FarmAction::Scan => {
+                let devices = UsbDiscovery::scan()?;
+                if devices.is_empty() {
+                    println!("no Android USB devices found");
+                } else {
+                    println!("{}", serde_json::to_string_pretty(&devices)?);
+                }
+            }
+        },
 
         Command::Mcp => {
             mcp::run().await;
-            Ok(())
         }
+    }
 
-        // ── Phases 2-5: stubs ──────────────────────────────────────────
-        Command::Sync { .. } => {
-            eprintln!("andro sync: not yet implemented (phase 2)");
-            Ok(())
-        }
-        Command::Log { .. } => {
-            eprintln!("andro log: not yet implemented (phase 3)");
-            Ok(())
-        }
-        Command::Build { .. } => {
-            eprintln!("andro build: not yet implemented (phase 4)");
-            Ok(())
-        }
-        Command::Sec { .. } => {
-            eprintln!("andro sec: not yet implemented (phase 4)");
-            Ok(())
-        }
-        Command::Hw { .. } => {
-            eprintln!("andro hw: not yet implemented (phase 5)");
-            Ok(())
-        }
-        Command::Farm { .. } => {
-            eprintln!("andro farm: not yet implemented (phase 5)");
-            Ok(())
+    Ok(())
+}
+
+fn resolve_device(manager: &DeviceManager, serial: Option<&str>) -> andro_core::Result<String> {
+    match serial {
+        Some(s) => Ok(s.to_string()),
+        None => {
+            let devices = manager.list_devices()?;
+            match devices.len() {
+                0 => Err(andro_core::AndroError::NoDevices),
+                1 => Ok(devices[0].id.0.clone()),
+                _ => Err(andro_core::AndroError::MultipleDevices),
+            }
         }
     }
 }
