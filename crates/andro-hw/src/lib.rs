@@ -1,7 +1,5 @@
-//! Hardware: boot image manipulation, fastboot protocol, partition management.
-//!
-//! Phase 5 — stub implementation.
+pub mod boot;
+pub mod fastboot;
 
-pub fn hw() {
-    unimplemented!("andro-hw: phase 5")
-}
+pub use boot::{BootImage, BootImageHeader};
+pub use fastboot::FastbootClient;

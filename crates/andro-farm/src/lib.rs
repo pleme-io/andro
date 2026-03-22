@@ -1,7 +1,5 @@
-//! Device farm: USB discovery, inventory, health polling, provisioning.
-//!
-//! Phase 5 — stub implementation.
+pub mod inventory;
+pub mod discovery;
 
-pub fn farm() {
-    unimplemented!("andro-farm: phase 5")
-}
+pub use inventory::{DeviceInventory, InventoryEntry};
+pub use discovery::UsbDiscovery;

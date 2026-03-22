@@ -1,7 +1,7 @@
-//! File transfer: BLAKE3 delta sync, incremental backup, media organization.
-//!
-//! Phase 2 — stub implementation.
+pub mod manifest;
+pub mod sync;
+pub mod media;
 
-pub fn sync() {
-    unimplemented!("andro-sync: phase 2")
-}
+pub use manifest::SyncManifest;
+pub use sync::{SyncDirection, SyncOptions, SyncResult, FileSyncer};
+pub use media::MediaOrganizer;

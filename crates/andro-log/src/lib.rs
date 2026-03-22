@@ -1,7 +1,7 @@
-//! Persistent logcat with FTS search, crash/ANR extraction, alerting.
-//!
-//! Phase 3 — stub implementation.
+pub mod parser;
+pub mod store;
+pub mod crash;
 
-pub fn log() {
-    unimplemented!("andro-log: phase 3")
-}
+pub use parser::{LogEntry, LogLevel, LogParser};
+pub use store::LogStore;
+pub use crash::{CrashReport, AnrReport, CrashDetector};

@@ -1,7 +1,5 @@
-//! APK/AAB analysis, size tracking, DEX parsing, binary diffing.
-//!
-//! Phase 4 — stub implementation.
+pub mod apk;
+pub mod size;
 
-pub fn build() {
-    unimplemented!("andro-build: phase 4")
-}
+pub use apk::{ApkInfo, ApkAnalyzer};
+pub use size::{SizeReport, SizeTracker};

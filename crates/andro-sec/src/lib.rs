@@ -1,7 +1,6 @@
-//! Security scan pipeline: permission audit, secret detection, rule engine.
-//!
-//! Phase 4 — stub implementation.
+pub mod scanner;
+pub mod rules;
+pub mod permissions;
 
-pub fn scan() {
-    unimplemented!("andro-sec: phase 4")
-}
+pub use scanner::{ScanResult, ScanFinding, Severity, ApkScanner};
+pub use permissions::{PermissionAudit, PermissionRisk};
