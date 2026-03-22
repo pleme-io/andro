@@ -224,4 +224,85 @@ mod tests {
         let status = mgr.fleet_status(&mut adb).unwrap();
         assert!(status.is_empty());
     }
+
+    #[tokio::test]
+    async fn parallel_exec_returns_results_for_all_devices() {
+        let adb = MockAdbTransport::new()
+            .with_shell_response("echo hello", "hello");
+        let adb: Arc<Mutex<dyn AdbTransport>> = Arc::new(Mutex::new(adb));
+        let mgr = FleetManager::new();
+        let serials: Vec<String> = (1..=5).map(|i| format!("DEV{i}")).collect();
+
+        let results = mgr.parallel_exec(&serials, "echo hello", adb).await;
+        assert_eq!(results.len(), 5);
+        for r in &results {
+            assert!(r.success);
+            assert_eq!(r.output.as_deref(), Some("hello"));
+            assert!(r.error.is_none());
+        }
+    }
+
+    #[tokio::test]
+    async fn parallel_exec_empty_device_list() {
+        let adb = MockAdbTransport::new();
+        let adb: Arc<Mutex<dyn AdbTransport>> = Arc::new(Mutex::new(adb));
+        let mgr = FleetManager::new();
+        let serials: Vec<String> = vec![];
+
+        let results = mgr.parallel_exec(&serials, "ls", adb).await;
+        assert!(results.is_empty());
+    }
+
+    #[tokio::test]
+    async fn parallel_exec_single_device() {
+        let adb = MockAdbTransport::new()
+            .with_shell_response("id", "uid=0(root)");
+        let adb: Arc<Mutex<dyn AdbTransport>> = Arc::new(Mutex::new(adb));
+        let mgr = FleetManager::new();
+        let serials = vec!["SOLO_DEV".to_string()];
+
+        let results = mgr.parallel_exec(&serials, "id", adb).await;
+        assert_eq!(results.len(), 1);
+        assert!(results[0].success);
+        assert_eq!(results[0].output.as_deref(), Some("uid=0(root)"));
+    }
+
+    #[test]
+    fn fleet_status_returns_all_device_info() {
+        let mut adb = MockAdbTransport::new()
+            .with_device("PHONE_A", "Pixel 8")
+            .with_device("PHONE_B", "Pixel 9")
+            .with_device("PHONE_C", "Galaxy S24");
+        let mgr = FleetManager::new();
+        let status = mgr.fleet_status(&mut adb).unwrap();
+
+        assert_eq!(status.len(), 3);
+        assert_eq!(status[0].serial, "PHONE_A");
+        assert_eq!(status[0].model, Some("Pixel 8".to_string()));
+        assert!(status[0].online);
+        assert_eq!(status[1].serial, "PHONE_B");
+        assert_eq!(status[2].model, Some("Galaxy S24".to_string()));
+    }
+
+    #[tokio::test]
+    async fn parallel_install_with_mock_transport() {
+        let adb = MockAdbTransport::new();
+        let adb: Arc<Mutex<dyn AdbTransport>> = Arc::new(Mutex::new(adb));
+        let mgr = FleetManager::new();
+        let serials = vec![
+            "DEV_A".to_string(),
+            "DEV_B".to_string(),
+            "DEV_C".to_string(),
+        ];
+
+        let results = mgr
+            .parallel_install(&serials, Path::new("/tmp/mock.apk"), adb)
+            .await;
+        assert_eq!(results.len(), 3);
+        for r in &results {
+            assert!(r.success);
+            assert_eq!(r.output.as_deref(), Some("installed"));
+            assert!(r.error.is_none());
+        }
+    }
 }

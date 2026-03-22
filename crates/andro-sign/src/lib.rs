@@ -363,4 +363,76 @@ mod tests {
         assert_eq!(certs.len(), 1);
         assert!(certs[0].subject.contains("v2"));
     }
+
+    #[test]
+    fn find_signing_block_with_magic_present() {
+        let verifier = ApkSignVerifier::new();
+        let apk = build_mock_apk(&[
+            (APK_SIG_V2_ID, &[0x11; 24]),
+            (APK_SIG_V3_ID, &[0x22; 24]),
+        ]);
+        let block = verifier.find_signing_block(&apk).unwrap();
+        assert!(block.is_some());
+        let block = block.unwrap();
+        assert_eq!(block.pairs.len(), 2);
+        assert_eq!(block.pairs[0].id, APK_SIG_V2_ID);
+        assert_eq!(block.pairs[1].id, APK_SIG_V3_ID);
+    }
+
+    #[test]
+    fn find_signing_block_returns_none_without_signing_block() {
+        let verifier = ApkSignVerifier::new();
+        // Build a buffer with just an EOCD and no signing block
+        let mut buf = Vec::new();
+        let cd_offset: u32 = 0;
+        buf.extend_from_slice(&EOCD_SIGNATURE);
+        buf.extend_from_slice(&0u16.to_le_bytes());
+        buf.extend_from_slice(&0u16.to_le_bytes());
+        buf.extend_from_slice(&0u16.to_le_bytes());
+        buf.extend_from_slice(&0u16.to_le_bytes());
+        buf.extend_from_slice(&0u32.to_le_bytes());
+        buf.extend_from_slice(&cd_offset.to_le_bytes());
+        buf.extend_from_slice(&0u16.to_le_bytes());
+        let block = verifier.find_signing_block(&buf).unwrap();
+        assert!(block.is_none());
+    }
+
+    #[test]
+    fn certificates_empty_when_no_signing_block() {
+        let verifier = ApkSignVerifier::new();
+        // Minimal EOCD only — no signing block
+        let mut buf = Vec::new();
+        buf.extend_from_slice(&EOCD_SIGNATURE);
+        buf.extend_from_slice(&0u16.to_le_bytes());
+        buf.extend_from_slice(&0u16.to_le_bytes());
+        buf.extend_from_slice(&0u16.to_le_bytes());
+        buf.extend_from_slice(&0u16.to_le_bytes());
+        buf.extend_from_slice(&0u32.to_le_bytes());
+        buf.extend_from_slice(&0u32.to_le_bytes()); // cd_offset = 0
+        buf.extend_from_slice(&0u16.to_le_bytes());
+        let certs = verifier.certificates(&buf).unwrap();
+        assert!(certs.is_empty());
+    }
+
+    #[test]
+    fn trait_send_sync_bounds_satisfied() {
+        fn assert_send_sync<T: Send + Sync>() {}
+        assert_send_sync::<ApkSignVerifier>();
+    }
+
+    #[test]
+    fn signature_result_serialization_roundtrip() {
+        let result = SignatureResult {
+            valid: true,
+            scheme_version: 3,
+            signer_count: 2,
+            error: None,
+        };
+        let json = serde_json::to_string(&result).unwrap();
+        let deserialized: SignatureResult = serde_json::from_str(&json).unwrap();
+        assert_eq!(deserialized.valid, result.valid);
+        assert_eq!(deserialized.scheme_version, result.scheme_version);
+        assert_eq!(deserialized.signer_count, result.signer_count);
+        assert!(deserialized.error.is_none());
+    }
 }

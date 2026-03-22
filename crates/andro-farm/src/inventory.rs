@@ -154,4 +154,163 @@ mod tests {
 
         let _ = std::fs::remove_file(&db_path);
     }
+
+    fn unique_db() -> std::path::PathBuf {
+        use std::sync::atomic::{AtomicU64, Ordering};
+        static COUNTER: AtomicU64 = AtomicU64::new(0);
+        let id = COUNTER.fetch_add(1, Ordering::Relaxed);
+        std::env::temp_dir().join(format!(
+            "andro_farm_mock_{}_{}_{}.db",
+            std::process::id(),
+            id,
+            std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .unwrap()
+                .as_nanos()
+        ))
+    }
+
+    #[test]
+    fn upsert_creates_entry_and_fields_match() {
+        let db_path = unique_db();
+        let inv = DeviceInventory::open(&db_path).unwrap();
+
+        let entry = InventoryEntry {
+            serial: "MOCK_S1".into(),
+            model: Some("Pixel 8 Pro".into()),
+            manufacturer: Some("Google".into()),
+            android_version: Some("15".into()),
+            api_level: Some("35".into()),
+            group: Some("lab-rack-1".into()),
+            last_seen: Utc::now(),
+            status: "online".into(),
+        };
+        inv.upsert(&entry).unwrap();
+
+        let devices = inv.list().unwrap();
+        assert_eq!(devices.len(), 1);
+        assert_eq!(devices[0].serial, "MOCK_S1");
+        assert_eq!(devices[0].model.as_deref(), Some("Pixel 8 Pro"));
+        assert_eq!(devices[0].manufacturer.as_deref(), Some("Google"));
+        assert_eq!(devices[0].android_version.as_deref(), Some("15"));
+        assert_eq!(devices[0].api_level.as_deref(), Some("35"));
+        assert_eq!(devices[0].status, "online");
+
+        let _ = std::fs::remove_file(&db_path);
+    }
+
+    #[test]
+    fn list_orders_most_recent_first() {
+        let db_path = unique_db();
+        let inv = DeviceInventory::open(&db_path).unwrap();
+
+        let older = InventoryEntry {
+            serial: "OLD_DEV".into(),
+            model: Some("Pixel 6".into()),
+            manufacturer: None,
+            android_version: None,
+            api_level: None,
+            group: None,
+            last_seen: DateTime::parse_from_rfc3339("2025-01-01T00:00:00Z")
+                .unwrap()
+                .with_timezone(&Utc),
+            status: "offline".into(),
+        };
+        let newer = InventoryEntry {
+            serial: "NEW_DEV".into(),
+            model: Some("Pixel 9".into()),
+            manufacturer: None,
+            android_version: None,
+            api_level: None,
+            group: None,
+            last_seen: DateTime::parse_from_rfc3339("2026-03-22T12:00:00Z")
+                .unwrap()
+                .with_timezone(&Utc),
+            status: "online".into(),
+        };
+
+        inv.upsert(&older).unwrap();
+        inv.upsert(&newer).unwrap();
+
+        let devices = inv.list().unwrap();
+        assert_eq!(devices.len(), 2);
+        assert_eq!(devices[0].serial, "NEW_DEV");
+        assert_eq!(devices[1].serial, "OLD_DEV");
+
+        let _ = std::fs::remove_file(&db_path);
+    }
+
+    #[test]
+    fn count_after_multiple_upserts() {
+        let db_path = unique_db();
+        let inv = DeviceInventory::open(&db_path).unwrap();
+
+        for i in 0..5 {
+            let entry = InventoryEntry {
+                serial: format!("DEV_{i}"),
+                model: Some(format!("Model_{i}")),
+                manufacturer: None,
+                android_version: None,
+                api_level: None,
+                group: None,
+                last_seen: Utc::now(),
+                status: "online".into(),
+            };
+            inv.upsert(&entry).unwrap();
+        }
+
+        assert_eq!(inv.count().unwrap(), 5);
+
+        let _ = std::fs::remove_file(&db_path);
+    }
+
+    #[test]
+    fn upsert_updates_existing_entry_same_serial() {
+        let db_path = unique_db();
+        let inv = DeviceInventory::open(&db_path).unwrap();
+
+        let original = InventoryEntry {
+            serial: "SAME_SERIAL".into(),
+            model: Some("Pixel 7".into()),
+            manufacturer: Some("Google".into()),
+            android_version: Some("13".into()),
+            api_level: Some("33".into()),
+            group: None,
+            last_seen: Utc::now(),
+            status: "offline".into(),
+        };
+        inv.upsert(&original).unwrap();
+
+        let updated = InventoryEntry {
+            serial: "SAME_SERIAL".into(),
+            model: Some("Pixel 7".into()),
+            manufacturer: Some("Google".into()),
+            android_version: Some("14".into()),
+            api_level: Some("34".into()),
+            group: None,
+            last_seen: Utc::now(),
+            status: "online".into(),
+        };
+        inv.upsert(&updated).unwrap();
+
+        assert_eq!(inv.count().unwrap(), 1);
+        let devices = inv.list().unwrap();
+        assert_eq!(devices[0].android_version.as_deref(), Some("14"));
+        assert_eq!(devices[0].api_level.as_deref(), Some("34"));
+        assert_eq!(devices[0].status, "online");
+
+        let _ = std::fs::remove_file(&db_path);
+    }
+
+    #[test]
+    fn list_returns_empty_for_new_database() {
+        let db_path = unique_db();
+        let inv = DeviceInventory::open(&db_path).unwrap();
+
+        let devices = inv.list().unwrap();
+        assert!(devices.is_empty());
+        assert_eq!(inv.count().unwrap(), 0);
+
+        let _ = std::fs::remove_file(&db_path);
+    }
 }

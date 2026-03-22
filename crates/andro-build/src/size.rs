@@ -94,3 +94,89 @@ impl SizeTracker {
         Ok(reports)
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn unique_db() -> std::path::PathBuf {
+        use std::sync::atomic::{AtomicU64, Ordering};
+        static COUNTER: AtomicU64 = AtomicU64::new(0);
+        let id = COUNTER.fetch_add(1, Ordering::Relaxed);
+        std::env::temp_dir().join(format!(
+            "andro_build_size_{}_{}_{}.db",
+            std::process::id(),
+            id,
+            std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .unwrap()
+                .as_nanos()
+        ))
+    }
+
+    #[test]
+    fn record_and_retrieve_history() {
+        let db_path = unique_db();
+        let tracker = SizeTracker::open(&db_path).unwrap();
+
+        let report = SizeReport {
+            file_size: 5_000_000,
+            dex_size: 2_000_000,
+            resource_size: 1_500_000,
+            native_size: 1_000_000,
+            asset_size: 300_000,
+            version: Some("1.0.0".into()),
+            git_sha: Some("abc123".into()),
+        };
+        tracker.record(&report).unwrap();
+
+        let history = tracker.history(10).unwrap();
+        assert_eq!(history.len(), 1);
+        assert_eq!(history[0].file_size, 5_000_000);
+        assert_eq!(history[0].dex_size, 2_000_000);
+        assert_eq!(history[0].version.as_deref(), Some("1.0.0"));
+        assert_eq!(history[0].git_sha.as_deref(), Some("abc123"));
+
+        let _ = std::fs::remove_file(&db_path);
+    }
+
+    #[test]
+    fn empty_history_on_fresh_database() {
+        let db_path = unique_db();
+        let tracker = SizeTracker::open(&db_path).unwrap();
+
+        let history = tracker.history(100).unwrap();
+        assert!(history.is_empty());
+
+        let _ = std::fs::remove_file(&db_path);
+    }
+
+    #[test]
+    fn multiple_records_ordered_by_recency() {
+        let db_path = unique_db();
+        let tracker = SizeTracker::open(&db_path).unwrap();
+
+        for i in 1..=4 {
+            let report = SizeReport {
+                file_size: i * 1_000_000,
+                dex_size: i * 500_000,
+                resource_size: i * 200_000,
+                native_size: i * 100_000,
+                asset_size: i * 50_000,
+                version: Some(format!("1.0.{i}")),
+                git_sha: Some(format!("sha{i}")),
+            };
+            tracker.record(&report).unwrap();
+        }
+
+        let history = tracker.history(10).unwrap();
+        assert_eq!(history.len(), 4);
+        // Most recent first (highest id DESC)
+        assert_eq!(history[0].version.as_deref(), Some("1.0.4"));
+        assert_eq!(history[1].version.as_deref(), Some("1.0.3"));
+        assert_eq!(history[2].version.as_deref(), Some("1.0.2"));
+        assert_eq!(history[3].version.as_deref(), Some("1.0.1"));
+
+        let _ = std::fs::remove_file(&db_path);
+    }
+}
