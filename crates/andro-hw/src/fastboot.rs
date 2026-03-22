@@ -1,3 +1,5 @@
+use andro_core::traits::UsbEnumerator;
+use andro_core::types::UsbDeviceInfo;
 use andro_core::{ANDROID_VENDOR_IDS, AndroError, Result};
 use serde::{Deserialize, Serialize};
 
@@ -11,40 +13,50 @@ pub struct FastbootDeviceInfo {
     pub unlocked: Option<bool>,
 }
 
-/// Fastboot client using nusb for USB enumeration.
-pub struct FastbootClient;
+/// Real USB enumerator for fastboot (shared with andro-farm).
+pub struct NusbEnumerator;
 
-impl FastbootClient {
-    /// List fastboot devices via nusb USB enumeration.
-    pub fn list_devices() -> Result<Vec<FastbootDeviceInfo>> {
-        let mut fastboot_devices = Vec::new();
-
+impl UsbEnumerator for NusbEnumerator {
+    fn list_devices(&self) -> Result<Vec<UsbDeviceInfo>> {
         let device_list = nusb::list_devices()
             .map_err(|e| AndroError::Other(format!("USB enumeration error: {e}")))?;
 
-        for dev in device_list {
-            let vid = dev.vendor_id();
+        Ok(device_list
+            .map(|dev| UsbDeviceInfo {
+                vendor_id: dev.vendor_id(),
+                product_id: dev.product_id(),
+                serial: dev.serial_number().map(|s| s.to_string()),
+                manufacturer: dev.manufacturer_string().map(|s| s.to_string()),
+                product: dev.product_string().map(|s| s.to_string()),
+            })
+            .collect())
+    }
+}
 
-            let is_android = ANDROID_VENDOR_IDS.contains(&vid);
+/// Fastboot client using USB enumeration.
+pub struct FastbootClient;
 
-            if is_android {
-                let serial = dev
-                    .serial_number()
-                    .unwrap_or_default()
-                    .to_string();
-                if !serial.is_empty() {
-                    fastboot_devices.push(FastbootDeviceInfo {
-                        serial,
-                        product: dev.product_string().map(|s| s.to_string()),
-                        variant: None,
-                        secure: None,
-                        unlocked: None,
-                    });
-                }
-            }
-        }
+impl FastbootClient {
+    /// List fastboot devices using the real nusb enumerator.
+    pub fn list_devices() -> Result<Vec<FastbootDeviceInfo>> {
+        Self::list_devices_with(&NusbEnumerator)
+    }
 
-        Ok(fastboot_devices)
+    /// List fastboot devices using any UsbEnumerator (for testing).
+    pub fn list_devices_with(enumerator: &dyn UsbEnumerator) -> Result<Vec<FastbootDeviceInfo>> {
+        let devices = enumerator.list_devices()?;
+        Ok(devices
+            .into_iter()
+            .filter(|d| ANDROID_VENDOR_IDS.contains(&d.vendor_id))
+            .filter(|d| d.serial.is_some())
+            .map(|d| FastbootDeviceInfo {
+                serial: d.serial.unwrap_or_default(),
+                product: d.product,
+                variant: None,
+                secure: None,
+                unlocked: None,
+            })
+            .collect())
     }
 
     /// Check if any fastboot device is connected.
@@ -56,6 +68,31 @@ impl FastbootClient {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use andro_core::mocks::MockUsbEnumerator;
+
+    #[test]
+    fn fastboot_with_mock_enumerator() {
+        let enumerator = MockUsbEnumerator::new()
+            .with_device(0x18D1, "FB_DEVICE");
+        let devices = FastbootClient::list_devices_with(&enumerator).unwrap();
+        assert_eq!(devices.len(), 1);
+        assert_eq!(devices[0].serial, "FB_DEVICE");
+    }
+
+    #[test]
+    fn fastboot_empty() {
+        let enumerator = MockUsbEnumerator::new();
+        let devices = FastbootClient::list_devices_with(&enumerator).unwrap();
+        assert!(devices.is_empty());
+    }
+
+    #[test]
+    fn fastboot_filters_non_android() {
+        let enumerator = MockUsbEnumerator::new()
+            .with_device(0x05AC, "APPLE"); // Not Android
+        let devices = FastbootClient::list_devices_with(&enumerator).unwrap();
+        assert!(devices.is_empty());
+    }
 
     #[test]
     fn fastboot_info_serialize() {

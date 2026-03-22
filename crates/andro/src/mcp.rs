@@ -1,4 +1,4 @@
-use andro_adb::DeviceManager;
+use andro_adb::{AdbClientTransport, DeviceManager};
 use andro_build::ApkAnalyzer;
 use andro_core::AndroConfig;
 use andro_farm::UsbDiscovery;
@@ -104,15 +104,8 @@ fn resolve_serial(config: &AndroConfig, device: Option<String>) -> Result<String
     match device {
         Some(s) => Ok(s),
         None => {
-            let manager = DeviceManager::from_config(config);
-            match manager.list_devices() {
-                Ok(devices) => match devices.len() {
-                    0 => Err("no devices connected".into()),
-                    1 => Ok(devices[0].id.0.clone()),
-                    _ => Err("multiple devices connected, specify device serial".into()),
-                },
-                Err(e) => Err(e.to_string()),
-            }
+            let mut manager = DeviceManager::from_config(config);
+            manager.resolve_serial(None).map_err(|e| e.to_string())
         }
     }
 }
@@ -138,7 +131,7 @@ impl AndroMcp {
 
     #[tool(description = "List all connected Android devices with serial numbers and connection state. Returns JSON array.")]
     async fn device_list(&self) -> String {
-        let manager = DeviceManager::from_config(&self.config);
+        let mut manager = DeviceManager::from_config(&self.config);
         match manager.list_devices() {
             Ok(devices) => json_ok(&devices),
             Err(e) => json_err(&e),
@@ -147,7 +140,7 @@ impl AndroMcp {
 
     #[tool(description = "Get detailed device information: model, manufacturer, Android version, API level, build fingerprint. Returns JSON.")]
     async fn device_info(&self, Parameters(input): Parameters<DeviceInput>) -> String {
-        let manager = DeviceManager::from_config(&self.config);
+        let mut manager = DeviceManager::from_config(&self.config);
         match manager.device_info(input.device.as_deref()) {
             Ok(info) => json_ok(&info),
             Err(e) => json_err(&e),
@@ -156,7 +149,7 @@ impl AndroMcp {
 
     #[tool(description = "Execute a shell command on an Android device and return stdout.")]
     async fn shell(&self, Parameters(input): Parameters<ShellInput>) -> String {
-        let manager = DeviceManager::from_config(&self.config);
+        let mut manager = DeviceManager::from_config(&self.config);
         match manager.shell(input.device.as_deref(), &input.command) {
             Ok(output) => output.stdout,
             Err(e) => json_err(&e),
@@ -165,7 +158,7 @@ impl AndroMcp {
 
     #[tool(description = "Install an APK file on an Android device.")]
     async fn install_apk(&self, Parameters(input): Parameters<InstallInput>) -> String {
-        let manager = DeviceManager::from_config(&self.config);
+        let mut manager = DeviceManager::from_config(&self.config);
         let path = std::path::PathBuf::from(&input.apk_path);
         match manager.install(input.device.as_deref(), &path) {
             Ok(()) => format!(r#"{{"ok":true,"installed":"{}"}}"#, input.apk_path),

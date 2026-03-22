@@ -1,6 +1,6 @@
 mod mcp;
 
-use andro_adb::DeviceManager;
+use andro_adb::{AdbClientTransport, DeviceManager};
 use andro_build::ApkAnalyzer;
 use andro_core::AndroConfig;
 use andro_farm::UsbDiscovery;
@@ -192,7 +192,7 @@ async fn run(command: Command) -> andro_core::Result<()> {
 
     match command {
         Command::Device { action } => {
-            let manager = DeviceManager::from_config(&config);
+            let mut manager = DeviceManager::from_config(&config);
             match action {
                 DeviceAction::List => {
                     let devices = manager.list_devices()?;
@@ -212,28 +212,28 @@ async fn run(command: Command) -> andro_core::Result<()> {
         }
 
         Command::Shell { device, command: cmd } => {
-            let manager = DeviceManager::from_config(&config);
+            let mut manager = DeviceManager::from_config(&config);
             let output = manager.shell(device.as_deref(), &cmd.join(" "))?;
             print!("{}", output.stdout);
         }
 
         Command::Install { device, apk } => {
-            let manager = DeviceManager::from_config(&config);
+            let mut manager = DeviceManager::from_config(&config);
             manager.install(device.as_deref(), &std::path::PathBuf::from(&apk))?;
             println!("installed {apk}");
         }
 
         Command::Sync { action } => {
             let syncer = FileSyncer::from_config(&config);
-            let manager = DeviceManager::from_config(&config);
+            let mut manager = DeviceManager::from_config(&config);
             match action {
                 SyncAction::Push { device, src, dst } => {
-                    let serial = resolve_device(&manager, device.as_deref())?;
+                    let serial = resolve_device(&mut manager, device.as_deref())?;
                     let bytes = syncer.push_file(&serial, std::path::Path::new(&src), &dst)?;
                     println!("pushed {bytes} bytes → {dst}");
                 }
                 SyncAction::Pull { device, src, dst } => {
-                    let serial = resolve_device(&manager, device.as_deref())?;
+                    let serial = resolve_device(&mut manager, device.as_deref())?;
                     let bytes = syncer.pull_file(&serial, &src, std::path::Path::new(&dst))?;
                     println!("pulled {bytes} bytes → {dst}");
                 }
@@ -346,16 +346,6 @@ async fn run(command: Command) -> andro_core::Result<()> {
     Ok(())
 }
 
-fn resolve_device(manager: &DeviceManager, serial: Option<&str>) -> andro_core::Result<String> {
-    match serial {
-        Some(s) => Ok(s.to_string()),
-        None => {
-            let devices = manager.list_devices()?;
-            match devices.len() {
-                0 => Err(andro_core::AndroError::NoDevices),
-                1 => Ok(devices[0].id.0.clone()),
-                _ => Err(andro_core::AndroError::MultipleDevices),
-            }
-        }
-    }
+fn resolve_device(manager: &mut DeviceManager<AdbClientTransport>, serial: Option<&str>) -> andro_core::Result<String> {
+    manager.resolve_serial(serial)
 }
