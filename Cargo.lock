@@ -141,7 +141,6 @@ name = "andro-hw"
 version = "0.1.0"
 dependencies = [
  "andro-core",
- "fastboot-protocol",
  "nusb",
  "serde",
  "serde_json",
@@ -899,19 +898,6 @@ name = "fallible-streaming-iterator"
 version = "0.1.9"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "7360491ce676a36bf9bb3c56c1aa791658183a54d2744120f27285738d90465a"
-
-[[package]]
-name = "fastboot-protocol"
-version = "0.3.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "872b35ed689318d8bf6ee79645b9c56f501999d7373d5ca5618117e45405ca35"
-dependencies = [
- "bytes",
- "futures",
- "nusb",
- "thiserror 2.0.18",
- "tracing",
-]
 
 [[package]]
 name = "fdeflate"

@@ -3,7 +3,7 @@ use andro_build::ApkAnalyzer;
 use andro_core::AndroConfig;
 use andro_farm::UsbDiscovery;
 use andro_hw::{BootImage, FastbootClient};
-use andro_log::{LogParser, LogStore, CrashDetector};
+use andro_log::LogStore;
 use andro_sec::{ApkScanner, PermissionAudit};
 use andro_sync::FileSyncer;
 use rmcp::{
@@ -89,16 +89,33 @@ struct BootImageInput {
     image_path: String,
 }
 
-#[derive(Debug, Deserialize, schemars::JsonSchema)]
-struct BootUnpackInput {
-    /// Path to boot.img file
-    image_path: String,
-    /// Output directory for extracted components
-    output_dir: String,
+// ── Helpers ────────────────────────────────────────────────────────────
+
+fn json_ok<T: serde::Serialize>(value: &T) -> String {
+    serde_json::to_string_pretty(value).unwrap_or_else(|e| json_err(&e))
 }
 
-#[derive(Debug, Deserialize, schemars::JsonSchema)]
-struct EmptyInput {}
+fn json_err(e: &dyn std::fmt::Display) -> String {
+    format!(r#"{{"error":"{}"}}"#, e.to_string().replace('"', "'"))
+}
+
+/// Resolve device serial: use provided serial or auto-detect single device.
+fn resolve_serial(config: &AndroConfig, device: Option<String>) -> Result<String, String> {
+    match device {
+        Some(s) => Ok(s),
+        None => {
+            let manager = DeviceManager::from_config(config);
+            match manager.list_devices() {
+                Ok(devices) => match devices.len() {
+                    0 => Err("no devices connected".into()),
+                    1 => Ok(devices[0].id.0.clone()),
+                    _ => Err("multiple devices connected, specify device serial".into()),
+                },
+                Err(e) => Err(e.to_string()),
+            }
+        }
+    }
+}
 
 // ── MCP server ─────────────────────────────────────────────────────────
 
@@ -161,9 +178,13 @@ impl AndroMcp {
     #[tool(description = "Push a file from host to Android device. Returns bytes transferred.")]
     async fn push_file(&self, Parameters(input): Parameters<FileTransferInput>) -> String {
         let syncer = FileSyncer::from_config(&self.config);
-        let device = input.device.unwrap_or_else(|| "default".into());
-        match syncer.push_file(&device, std::path::Path::new(&input.source), &input.destination) {
-            Ok(bytes) => format!(r#"{{"ok":true,"bytes":{bytes}}}"#),
+        match resolve_serial(&self.config, input.device) {
+            Ok(serial) => {
+                match syncer.push_file(&serial, std::path::Path::new(&input.source), &input.destination) {
+                    Ok(bytes) => format!(r#"{{"ok":true,"bytes":{bytes}}}"#),
+                    Err(e) => json_err(&e),
+                }
+            }
             Err(e) => json_err(&e),
         }
     }
@@ -171,9 +192,13 @@ impl AndroMcp {
     #[tool(description = "Pull a file from Android device to host. Returns bytes transferred.")]
     async fn pull_file(&self, Parameters(input): Parameters<FileTransferInput>) -> String {
         let syncer = FileSyncer::from_config(&self.config);
-        let device = input.device.unwrap_or_else(|| "default".into());
-        match syncer.pull_file(&device, &input.source, std::path::Path::new(&input.destination)) {
-            Ok(bytes) => format!(r#"{{"ok":true,"bytes":{bytes}}}"#),
+        match resolve_serial(&self.config, input.device) {
+            Ok(serial) => {
+                match syncer.pull_file(&serial, &input.source, std::path::Path::new(&input.destination)) {
+                    Ok(bytes) => format!(r#"{{"ok":true,"bytes":{bytes}}}"#),
+                    Err(e) => json_err(&e),
+                }
+            }
             Err(e) => json_err(&e),
         }
     }
@@ -212,7 +237,7 @@ impl AndroMcp {
 
     // ── Build analysis tools ───────────────────────────────────────────
 
-    #[tool(description = "Analyze an APK file: size breakdown by category (DEX, resources, native libs, assets), entry count, ABIs, manifest presence. Returns JSON.")]
+    #[tool(description = "Analyze an APK file: size breakdown by category (DEX, resources, native libs, assets), entry count, ABIs. Returns JSON.")]
     async fn apk_analyze(&self, Parameters(input): Parameters<ApkPathInput>) -> String {
         match ApkAnalyzer::analyze(std::path::Path::new(&input.apk_path)) {
             Ok(info) => json_ok(&info),
@@ -250,7 +275,7 @@ impl AndroMcp {
 
     // ── Hardware tools ─────────────────────────────────────────────────
 
-    #[tool(description = "Parse an Android boot image header: kernel/ramdisk sizes, page size, command line, OS version. Returns JSON.")]
+    #[tool(description = "Parse an Android boot image header: kernel/ramdisk sizes, page size, command line. Returns JSON.")]
     async fn boot_info(&self, Parameters(input): Parameters<BootImageInput>) -> String {
         match BootImage::parse(std::path::Path::new(&input.image_path)) {
             Ok(image) => json_ok(&image),
@@ -258,7 +283,7 @@ impl AndroMcp {
         }
     }
 
-    #[tool(description = "List USB devices in fastboot mode. Returns JSON array of fastboot device info.")]
+    #[tool(description = "List USB devices in fastboot mode. Returns JSON array.")]
     async fn fastboot_devices(&self) -> String {
         match FastbootClient::list_devices() {
             Ok(devices) => json_ok(&devices),
@@ -268,7 +293,7 @@ impl AndroMcp {
 
     // ── Farm tools ─────────────────────────────────────────────────────
 
-    #[tool(description = "Scan USB bus for connected Android devices. Returns JSON array with vendor/product IDs, serial, manufacturer.")]
+    #[tool(description = "Scan USB bus for connected Android devices. Returns JSON array with vendor/product IDs and serial.")]
     async fn usb_scan(&self) -> String {
         match UsbDiscovery::scan() {
             Ok(devices) => json_ok(&devices),
@@ -282,7 +307,7 @@ impl ServerHandler for AndroMcp {
     fn get_info(&self) -> ServerInfo {
         ServerInfo {
             instructions: Some(
-                "Android DevOps suite — 17 tools across device management, file transfer, \
+                "Android DevOps suite — 15 tools across device management, file transfer, \
                  log analysis, APK analysis, security scanning, hardware inspection, \
                  and USB device discovery."
                     .into(),
@@ -291,16 +316,6 @@ impl ServerHandler for AndroMcp {
             ..Default::default()
         }
     }
-}
-
-// ── Helpers ────────────────────────────────────────────────────────────
-
-fn json_ok<T: serde::Serialize>(value: &T) -> String {
-    serde_json::to_string_pretty(value).unwrap_or_else(|e| json_err(&e))
-}
-
-fn json_err(e: &dyn std::fmt::Display) -> String {
-    format!(r#"{{"error":"{}"}}"#, e.to_string().replace('"', "'"))
 }
 
 /// Run the MCP server on stdio transport.

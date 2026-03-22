@@ -1,5 +1,6 @@
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
+use std::net::SocketAddrV4;
 use std::path::PathBuf;
 
 /// Root configuration for andro.
@@ -104,4 +105,32 @@ impl AndroConfig {
 
         Self::default()
     }
+
+    /// Parse ADB server address from config fields.
+    pub fn server_addr(&self) -> SocketAddrV4 {
+        format!("{}:{}", self.adb_host, self.adb_port)
+            .parse()
+            .unwrap_or_else(|_| "127.0.0.1:5037".parse().unwrap())
+    }
 }
+
+/// Known Android device USB vendor IDs.
+/// Shared across andro-farm (USB discovery) and andro-hw (fastboot).
+pub const ANDROID_VENDOR_IDS: &[u16] = &[
+    0x18D1, // Google
+    0x04E8, // Samsung
+    0x22B8, // Motorola
+    0x2717, // Xiaomi
+    0x2A70, // OnePlus
+    0x05C6, // Qualcomm
+    0x1949, // Lab126 (Amazon)
+    0x0BB4, // HTC
+    0x12D1, // Huawei
+    0x2B4C, // Nothing
+    0x1004, // LG
+    0x0FCE, // Sony
+    0x2A96, // Google (Tensor)
+    0x0E8D, // MediaTek
+    0x1532, // Razer
+    0x2916, // Google (AOSP)
+];

@@ -5,8 +5,8 @@ use andro_build::ApkAnalyzer;
 use andro_core::AndroConfig;
 use andro_farm::UsbDiscovery;
 use andro_hw::{BootImage, FastbootClient};
-use andro_log::{LogParser, LogStore};
-use andro_sec::{ApkScanner, PermissionAudit};
+use andro_log::LogStore;
+use andro_sec::ApkScanner;
 use andro_sync::FileSyncer;
 use clap::{Parser, Subcommand};
 use std::process::ExitCode;
@@ -336,7 +336,10 @@ async fn run(command: Command) -> andro_core::Result<()> {
         },
 
         Command::Mcp => {
-            mcp::run().await;
+            let code = mcp::run().await;
+            return if code == ExitCode::SUCCESS { Ok(()) } else {
+                Err(andro_core::AndroError::Other("MCP server failed".into()))
+            };
         }
     }
 

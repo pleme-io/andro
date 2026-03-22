@@ -35,12 +35,8 @@ andro-hw = { path = "crates/andro-hw", version = "0.1.0" }
 # ADB / Android
 adb_client = "3.1"
 
-# USB / Fastboot
+# USB
 nusb = "0.1"
-fastboot-protocol = "0.3"
-
-# Binary parsing
-binrw = "0.15"
 
 # APK analysis
 zip = "2"

@@ -1,5 +1,4 @@
 use serde::{Deserialize, Serialize};
-use std::io::Read;
 use std::path::Path;
 use zip::ZipArchive;
 

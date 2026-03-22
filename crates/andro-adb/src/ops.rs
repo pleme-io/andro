@@ -20,10 +20,9 @@ pub struct DeviceManager {
 impl DeviceManager {
     /// Create a new manager from config.
     pub fn from_config(config: &AndroConfig) -> Self {
-        let addr: SocketAddrV4 = format!("{}:{}", config.adb_host, config.adb_port)
-            .parse()
-            .unwrap_or_else(|_| "127.0.0.1:5037".parse().unwrap());
-        Self { server_addr: addr }
+        Self {
+            server_addr: config.server_addr(),
+        }
     }
 
     fn server(&self) -> ADBServer {

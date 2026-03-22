@@ -39,12 +39,9 @@ pub struct FileSyncer {
 
 impl FileSyncer {
     pub fn from_config(config: &AndroConfig) -> Self {
-        let addr: SocketAddrV4 = format!("{}:{}", config.adb_host, config.adb_port)
-            .parse()
-            .unwrap_or_else(|_| "127.0.0.1:5037".parse().unwrap());
         let manifest_dir = config.sync.backup_dir.join(".manifests");
         Self {
-            server_addr: addr,
+            server_addr: config.server_addr(),
             manifest_dir,
         }
     }

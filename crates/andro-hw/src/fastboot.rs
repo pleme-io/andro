@@ -1,4 +1,4 @@
-use andro_core::{AndroError, Result};
+use andro_core::{ANDROID_VENDOR_IDS, AndroError, Result};
 use serde::{Deserialize, Serialize};
 
 /// Fastboot device info.
@@ -25,12 +25,7 @@ impl FastbootClient {
         for dev in device_list {
             let vid = dev.vendor_id();
 
-            // Known Android vendor IDs
-            let is_android = matches!(
-                vid,
-                0x18D1 | 0x04E8 | 0x22B8 | 0x2717 | 0x2A70
-                    | 0x05C6 | 0x1949 | 0x0BB4 | 0x12D1 | 0x2B4C
-            );
+            let is_android = ANDROID_VENDOR_IDS.contains(&vid);
 
             if is_android {
                 let serial = dev
