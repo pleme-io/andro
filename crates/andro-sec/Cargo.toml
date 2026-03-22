@@ -1,0 +1,21 @@
+[package]
+name = "andro-sec"
+description = "Security scan pipeline: permission audit, secret detection, rule engine"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+authors.workspace = true
+repository.workspace = true
+
+[lints]
+workspace = true
+
+[dependencies]
+andro-core.workspace = true
+andro-build.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+thiserror.workspace = true
+tracing.workspace = true
+regex.workspace = true

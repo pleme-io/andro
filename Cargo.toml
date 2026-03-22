@@ -1,0 +1,104 @@
+[workspace]
+resolver = "2"
+members = [
+  "crates/andro",
+  "crates/andro-core",
+  "crates/andro-adb",
+  "crates/andro-sync",
+  "crates/andro-log",
+  "crates/andro-build",
+  "crates/andro-sec",
+  "crates/andro-farm",
+  "crates/andro-hw",
+]
+
+[workspace.package]
+edition = "2024"
+version = "0.1.0"
+rust-version = "1.91.0"
+license = "MIT"
+authors = ["pleme-io"]
+repository = "https://github.com/pleme-io/andro"
+homepage = "https://github.com/pleme-io/andro"
+
+[workspace.dependencies]
+# Internal crates
+andro-core = { path = "crates/andro-core", version = "0.1.0" }
+andro-adb = { path = "crates/andro-adb", version = "0.1.0" }
+andro-sync = { path = "crates/andro-sync", version = "0.1.0" }
+andro-log = { path = "crates/andro-log", version = "0.1.0" }
+andro-build = { path = "crates/andro-build", version = "0.1.0" }
+andro-sec = { path = "crates/andro-sec", version = "0.1.0" }
+andro-farm = { path = "crates/andro-farm", version = "0.1.0" }
+andro-hw = { path = "crates/andro-hw", version = "0.1.0" }
+
+# ADB / Android
+adb_client = "3.1"
+
+# USB / Fastboot
+nusb = "0.2"
+fastboot-protocol = "0.3"
+
+# Binary parsing
+binrw = "0.15"
+
+# APK analysis
+zip = "2"
+axmldecoder = "0.5"
+
+# EXIF
+kamadak-exif = "0.6"
+
+# Hashing
+blake3 = "1"
+
+# Error handling
+thiserror = "2"
+anyhow = "1"
+
+# CLI
+clap = { version = "4", features = ["derive"] }
+
+# Async
+tokio = { version = "1", features = ["full"] }
+
+# Serialization
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+serde_yaml_ng = "0.10"
+
+# MCP
+rmcp = { version = "0.15", features = ["server", "transport-io"] }
+schemars = "0.8"
+
+# Logging
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["env-filter", "json"] }
+
+# Database
+rusqlite = { version = "0.33", features = ["bundled"] }
+
+# Regex / matching
+regex = "1"
+
+# Directories
+dirs = "6"
+
+# Time
+chrono = { version = "0.4", features = ["serde"] }
+
+# Progress
+indicatif = "0.17"
+
+# File traversal
+walkdir = "2"
+glob = "0.3"
+
+[workspace.lints.clippy]
+pedantic = "warn"
+
+[profile.release]
+codegen-units = 1
+lto = true
+opt-level = "z"
+strip = true

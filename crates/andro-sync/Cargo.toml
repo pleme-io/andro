@@ -1,0 +1,26 @@
+[package]
+name = "andro-sync"
+description = "File transfer: BLAKE3 delta sync, incremental backup, media organization"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+authors.workspace = true
+repository.workspace = true
+
+[lints]
+workspace = true
+
+[dependencies]
+andro-core.workspace = true
+adb_client.workspace = true
+tokio.workspace = true
+serde.workspace = true
+thiserror.workspace = true
+tracing.workspace = true
+blake3.workspace = true
+walkdir.workspace = true
+glob.workspace = true
+indicatif.workspace = true
+kamadak-exif.workspace = true
+chrono.workspace = true

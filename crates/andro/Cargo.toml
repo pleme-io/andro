@@ -1,0 +1,34 @@
+[package]
+name = "andro"
+description = "Android DevOps suite — CLI + daemon + MCP server"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+authors.workspace = true
+repository.workspace = true
+
+[lints]
+workspace = true
+
+[dependencies]
+andro-core.workspace = true
+andro-adb.workspace = true
+andro-sync.workspace = true
+andro-log.workspace = true
+andro-build.workspace = true
+andro-sec.workspace = true
+andro-farm.workspace = true
+andro-hw.workspace = true
+clap.workspace = true
+tokio.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+tracing.workspace = true
+tracing-subscriber.workspace = true
+rmcp.workspace = true
+schemars.workspace = true
+
+[[bin]]
+name = "andro"
+path = "src/main.rs"
