@@ -2,3 +2,4 @@ target/
 result
 .direnv/
 Cargo.build-spec.json
+crate-hashes.json

@@ -941,7 +941,7 @@ dependencies = [
 [[package]]
 name = "fudajiku"
 version = "0.1.0"
-source = "git+https://github.com/pleme-io/fudajiku#41df9ad52af505e0890598d3b9820c865f1ec9c3"
+source = "git+https://github.com/pleme-io/fudajiku#27ab5e18370bbaee9e41a07e2a307b1215eac0f3"
 dependencies = [
  "blake3",
  "chrono",

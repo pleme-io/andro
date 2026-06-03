@@ -1,6 +1,6 @@
 {
   "schema_version": 1,
-  "cargo_lock_sha256": "362ad7ba1e86ac0ba38ac6b5f1be57e07267d75ddeaf021eb8b8550f4d306a09",
+  "cargo_lock_sha256": "9bf86b42679c8ce24f5529880e432ab5af201f60796e7822979fcb3d8bd25a96",
   "target_resolves": {
     "base": {
       "adb_client-3.1.2": {
@@ -16425,7 +16425,7 @@
     }
   },
   "git_nar_sha256": {
-    "fudajiku-0.1.0": "sha256-+viw2Ah6ngb8/t9TC285xROKpd1tr61EYOdr6EFfmzY="
+    "fudajiku-0.1.0": "sha256-BgSF5RLz2PVo+63Tan/3+B1LchrQfzjp4XM+ZAEUwK8="
   },
   "flake_metadata": {}
 }
