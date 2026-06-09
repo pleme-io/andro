@@ -2,12 +2,11 @@
   description = "andro - Android DevOps suite (CLI + daemon + MCP server)";
 
   inputs = {
-    nixpkgs.url = "github:NixOS/nixpkgs/nixos-25.11";
+    nixpkgs.follows = "substrate/nixpkgs";
     crate2nix.url = "github:nix-community/crate2nix";
     flake-utils.url = "github:numtide/flake-utils";
     substrate = {
       url = "github:pleme-io/substrate";
-      inputs.nixpkgs.follows = "nixpkgs";
     };
   };
 
